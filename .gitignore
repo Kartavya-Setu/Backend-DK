@@ -1,0 +1,17 @@
+# Credentials & Secrets
+appsettings.secret.json
+appsettings.*.secret.json
+*.secret.json
+
+# Build outputs & caches
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.vscode/
+
+# Local databases
+*.db
+*.db-shm
+*.db-wal
