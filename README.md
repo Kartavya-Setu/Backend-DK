@@ -1,4 +1,4 @@
-# DirectKarigar Core API (ਕਾਰੀਗਰ ਡਾਇਰੈਕਟ)
+# DirectKarigar Core API (कारीगर डायरेक्ट)
 ### Enterprise ASP.NET Core 9 Modular Monolith Backend
 
 [![.NET 9](https://img.shields.io/badge/.NET-9.0.3-512BD4.svg?logo=dotnet)](https://dotnet.microsoft.com/)
