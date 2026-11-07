@@ -233,9 +233,10 @@ Backend-DK/
 │       └── appsettings.json                  # Connection strings, JWT & CORS configuration
 │
 └── tests/
-    └── DirectKarigar.Domain.UnitTests/       # Domain Engine Test Suite (7 passing tests)
+    └── DirectKarigar.Domain.UnitTests/       # Domain Engine Test Suite (12 passing tests)
         ├── CustomerTrustEngineTests.cs       # Score calculations & tier matching tests
-        └── AntiBypassAuditEngineTests.cs     # Cancellation risk heuristics & pricing tests
+        ├── AntiBypassAuditEngineTests.cs     # Cancellation risk heuristics & pricing tests
+        └── RegistrationAndDispatchEngineTests.cs # Registration invariants & pro capacity tests
 ```
 
 ---
@@ -264,6 +265,9 @@ Backend-DK/
 | :--- | :--- | :--- | :--- |
 | `/api/v1/auth/login` | `POST` | Public | Authenticate via email/phone and password |
 | `/api/v1/auth/demo-login` | `POST` | Public | 1-Click login for predefined demo accounts |
+| `/api/v1/auth/register-customer` | `POST` | Public | Register new customer account and create profile |
+| `/api/v1/auth/register-karigar` | `POST` | Public | Register new technician/karigar with trade and UPI |
+| `/api/v1/auth/register-admin` | `POST` | Public | Register platform operations / safety admin |
 | `/api/v1/jobs` | `GET` | Any Auth | List jobs filtered by customer, pro, or status |
 | `/api/v1/jobs` | `POST` | Customer | Broadcast new job requirement to radar |
 | `/api/v1/jobs/{id}` | `GET` | Any Auth | Get job details, chat messages, and bill |

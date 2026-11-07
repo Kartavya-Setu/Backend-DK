@@ -5,6 +5,34 @@ namespace DirectKarigar.Application.DTOs;
 public record LoginRequest(string EmailOrPhone, string Password);
 public record DemoLoginRequest(string Role); // customer, professional, admin
 
+public record RegisterCustomerRequest(
+    string Name,
+    string Email,
+    string Phone,
+    string Locality,
+    string Password
+);
+
+public record RegisterProfessionalRequest(
+    string Name,
+    string Trade,
+    int ExperienceYears,
+    string Email,
+    string Phone,
+    string Locality,
+    string UpiId,
+    string Password
+);
+
+public record RegisterAdminRequest(
+    string Name,
+    string Email,
+    string Phone,
+    string Password,
+    string? AdminRole = null,
+    string? Locality = null
+);
+
 public record AuthUserDto(
     string Id,
     string Name,
