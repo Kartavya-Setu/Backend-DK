@@ -151,6 +151,117 @@ public class JobsController : ControllerBase
         return Ok(job);
     }
 
+    [HttpPost("{id}/claim")]
+    public async Task<ActionResult<Job>> ClaimJob(string id, [FromBody] ClaimJobRequest request)
+    {
+        var job = await _context.Jobs
+            .Include(j => j.Messages)
+            .Include(j => j.Bill)
+            .FirstOrDefaultAsync(j => j.Id == id);
+
+        if (job == null) return NotFound(new { message = $"Job {id} not found." });
+
+        if (job.Status != JobStatus.Posted)
+        {
+            return BadRequest(new { message = $"Cannot claim job in '{job.Status}' state. Only Posted requirements can be claimed directly via Instant Match." });
+        }
+
+        var pro = await _context.ProfessionalProfiles
+            .Include(p => p.User)
+            .FirstOrDefaultAsync(p => p.Id == request.ProId);
+
+        if (pro == null)
+        {
+            return NotFound(new { message = $"Professional {request.ProId} not found." });
+        }
+
+        // Capacity guard: Check if technician has reached maximum concurrent orders
+        if (pro.ActiveOrdersCount >= pro.MaxConcurrentOrders)
+        {
+            return Conflict(new { message = $"Karigar {pro.User?.Name ?? pro.Id} has reached maximum active order capacity ({pro.ActiveOrdersCount}/{pro.MaxConcurrentOrders}). Complete active work before claiming new leads." });
+        }
+
+        var agreedPrice = request.AgreedPrice ?? job.BudgetMin;
+        if (agreedPrice <= 0) agreedPrice = job.BudgetMax;
+
+        job.AssignedProId = pro.Id;
+        job.AssignedProName = request.ProName ?? pro.User?.Name ?? "Verified Karigar";
+        job.AssignedProPhone = request.ProPhone ?? pro.User?.Phone ?? "+91 94480 32155";
+        job.AgreedPrice = agreedPrice;
+        job.Status = JobStatus.Assigned;
+
+        pro.ActiveOrdersCount += 1;
+
+        job.Messages.Add(new ChatMessage
+        {
+            JobId = id,
+            SenderId = "system",
+            SenderRole = "system",
+            SenderName = "KarigarDirect Instant Match",
+            Text = $"Requirement claimed directly by {job.AssignedProName} via Instant Match. Rate locked at ₹{agreedPrice} (Zero platform commission). Karigar dispatched."
+        });
+
+        await _context.SaveChangesAsync();
+        return Ok(job);
+    }
+
+    [HttpGet("{id}/matchmaking")]
+    public async Task<ActionResult<JobMatchmakingResponse>> GetJobMatchmaking(string id)
+    {
+        var job = await _context.Jobs.AsNoTracking().FirstOrDefaultAsync(j => j.Id == id);
+        if (job == null) return NotFound(new { message = $"Job {id} not found." });
+
+        var customer = await _context.CustomerProfiles.AsNoTracking().FirstOrDefaultAsync(c => c.Id == job.CustomerId);
+        if (customer == null)
+        {
+            customer = new CustomerProfile
+            {
+                Id = job.CustomerId,
+                City = job.City,
+                Locality = job.Locality,
+                InternalProRatingSum = 45.0,
+                InternalProRatingCount = 9,
+                InternalPaymentReliability = 98.0,
+                InternalCancellationRate = 0.02
+            };
+        }
+
+        var score = CustomerTrustEngine.CalculateScore(customer);
+
+        var prosQuery = _context.ProfessionalProfiles.Include(p => p.User).AsNoTracking().AsQueryable();
+        var categoryStr = job.Category.ToString();
+        var categoryPros = await prosQuery.Where(p => p.Trade.ToLower().Contains(categoryStr.ToLower())).ToListAsync();
+
+        var candidatePros = categoryPros.Any()
+            ? categoryPros
+            : await _context.ProfessionalProfiles.Include(p => p.User).AsNoTracking().ToListAsync();
+
+        var ranked = CustomerTrustEngine.RankProsForJob(job, customer, candidatePros);
+
+        var rankedDtos = ranked.Select(r => new MatchmakingRankingDto(
+            ProId: r.Pro.Id,
+            ProName: r.Pro.User?.Name ?? r.Pro.Id,
+            Trade: r.Pro.Trade,
+            PublicRating: r.Pro.PublicRating,
+            ExperienceYears: r.Pro.ExperienceYears,
+            Locality: r.Pro.Locality,
+            MatchScore: r.MatchScore,
+            Reason: r.Reason,
+            ActiveOrdersCount: r.Pro.ActiveOrdersCount,
+            MaxConcurrentOrders: r.Pro.MaxConcurrentOrders
+        )).ToList();
+
+        return Ok(new JobMatchmakingResponse(
+            JobId: job.Id,
+            CustomerId: customer.Id,
+            CustomerName: job.CustomerName,
+            CustomerInternalScore: score.InternalScore,
+            CustomerTier: score.Tier.ToString(),
+            DispatchPriorityMultiplier: score.DispatchPriorityMultiplier,
+            RankedPros: rankedDtos
+        ));
+    }
+
     [HttpPost("{id}/bill")]
     public async Task<ActionResult<Job>> CreateBill(string id, [FromBody] CreateBillRequest request)
     {

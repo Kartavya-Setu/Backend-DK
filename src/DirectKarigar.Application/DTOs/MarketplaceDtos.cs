@@ -135,3 +135,40 @@ public record ReviewKycRequest(
 public record UpdateSurgeRequest(
     double Multiplier
 );
+
+public record ClaimJobRequest(
+    string ProId,
+    string? ProName = null,
+    string? ProPhone = null,
+    decimal? AgreedPrice = null
+);
+
+public record UpdateTelemetryRequest(
+    double Lat,
+    double Lng,
+    string Locality,
+    bool? IsOnline = null
+);
+
+public record MatchmakingRankingDto(
+    string ProId,
+    string ProName,
+    string Trade,
+    double PublicRating,
+    int ExperienceYears,
+    string Locality,
+    int MatchScore,
+    string Reason,
+    int ActiveOrdersCount,
+    int MaxConcurrentOrders
+);
+
+public record JobMatchmakingResponse(
+    string JobId,
+    string CustomerId,
+    string CustomerName,
+    int CustomerInternalScore,
+    string CustomerTier,
+    double DispatchPriorityMultiplier,
+    List<MatchmakingRankingDto> RankedPros
+);
