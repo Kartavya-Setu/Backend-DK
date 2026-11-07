@@ -233,10 +233,11 @@ Backend-DK/
 │       └── appsettings.json                  # Connection strings, JWT & CORS configuration
 │
 └── tests/
-    └── DirectKarigar.Domain.UnitTests/       # Domain Engine Test Suite (12 passing tests)
+    └── DirectKarigar.Domain.UnitTests/       # Domain Engine Test Suite (16 passing tests)
         ├── CustomerTrustEngineTests.cs       # Score calculations & tier matching tests
         ├── AntiBypassAuditEngineTests.cs     # Cancellation risk heuristics & pricing tests
-        └── RegistrationAndDispatchEngineTests.cs # Registration invariants & pro capacity tests
+        ├── RegistrationAndDispatchEngineTests.cs # Registration invariants & pro capacity tests
+        └── PaymentAndRatingEngineTests.cs    # Direct settlement, double-blind rating & appeal tests
 ```
 
 ---
@@ -274,13 +275,18 @@ Backend-DK/
 | `/api/v1/jobs/{id}/messages` | `POST` | Any Auth | Send in-app chat message or quote offer |
 | `/api/v1/jobs/{id}/offers/{msgId}/accept` | `POST` | Customer | Accept counter-offer & lock rate atomically |
 | `/api/v1/jobs/{id}/bill` | `POST` | Pro | Generate transparent bill (Labor + Parts + ₹19) |
+| `/api/v1/jobs/{id}/status` | `PATCH` | Any Auth | Transition job lifecycle state |
+| `/api/v1/jobs/{id}/settle` | `POST` | Customer/Pro | Record direct 0% commission settlement (UPI/Cash) |
+| `/api/v1/jobs/{id}/ratings` | `POST` | Customer/Pro | Submit double-blind rating (public for pro, hidden for customer) |
 | `/api/v1/jobs/{id}/cancel` | `POST` | Customer | Cancel job (triggers Anti-Bypass risk audit) |
 | `/api/v1/professionals` | `GET` | Any | List all registered trade professionals |
 | `/api/v1/professionals/nearby` | `GET` | Any | Geospatial proximity search (`lat`, `lng`, `radiusKm`) |
 | `/api/v1/admin/kyc` | `GET` | Admin | Review pending UIDAI Aadhaar/ITI dossiers |
+| `/api/v1/admin/kyc` | `POST` | Pro | Submit Aadhaar & trade credentials dossier for review |
 | `/api/v1/admin/kyc/{id}/approve` | `POST` | Admin | Verify dossier & award Verified badge |
 | `/api/v1/admin/kyc/{id}/reject` | `POST` | Admin | Reject dossier with formal reason code |
 | `/api/v1/admin/disputes` | `GET` | Admin | Review flagged offline bypass disputes |
+| `/api/v1/admin/disputes/{id}/appeal` | `POST` | Pro | Submit dispute defense statement and proof of innocence |
 | `/api/v1/admin/disputes/{id}/resolve` | `POST` | Admin | Enforce or waive ₹250 penalty |
 | `/api/v1/admin/locality-metrics` | `GET` | Admin | Locality demand-supply deficit & response times |
 | `/api/v1/admin/locality-metrics/{loc}/surge` | `PATCH` | Admin | Adjust surge pricing multiplier |

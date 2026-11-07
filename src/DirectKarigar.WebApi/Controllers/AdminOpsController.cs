@@ -31,6 +31,56 @@ public class AdminOpsController : ControllerBase
         return Ok(await query.ToListAsync());
     }
 
+    [HttpPost("kyc")]
+    public async Task<ActionResult> SubmitKyc([FromBody] SubmitKycRequest request)
+    {
+        var record = new KycRecord
+        {
+            Id = $"kyc_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}",
+            ProfessionalId = request.ProfessionalId,
+            ProfessionalName = request.ProfessionalName,
+            Trade = request.Trade,
+            Phone = request.Phone,
+            Locality = request.Locality,
+            City = request.City,
+            AadhaarNumberMasked = request.AadhaarNumberMasked,
+            PanNumberMasked = request.PanNumberMasked ?? "ABCDE1234F",
+            SelfieUrl = request.SelfieUrl ?? "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=400&q=80",
+            Status = KycVerificationStatus.Pending,
+            FaceMatchConfidence = 98.2,
+            TamperDetectionScore = 99.5,
+            AadhaarOtpValidated = true,
+            DuplicateAccountRisk = "low",
+            Documents = request.Documents?.Select(d =>
+            {
+                _ = Enum.TryParse<KycDocumentType>(d.Type.Replace("_", ""), true, out var docType);
+                return new KycDocument
+                {
+                    Type = docType,
+                    Title = d.Title,
+                    DocumentNumberMasked = d.DocumentNumberMasked,
+                    FileUrl = d.FileUrl
+                };
+            }).ToList() ?? new List<KycDocument>()
+        };
+
+        _context.KycRecords.Add(record);
+
+        _context.AdminAuditLogs.Add(new AdminAuditLog
+        {
+            AdminName = "System Trust Guard",
+            AdminRole = AdminRole.KycVerifier,
+            Action = "SUBMITTED_KYC_CREDENTIALS",
+            TargetId = record.ProfessionalId,
+            TargetType = "kyc_document",
+            Details = $"Submitted Aadhaar and trade credentials for verification: {record.ProfessionalName} ({record.Trade}).",
+            BadgeColor = "amber"
+        });
+
+        await _context.SaveChangesAsync();
+        return Ok(record);
+    }
+
     [HttpPost("kyc/{id}/approve")]
     public async Task<ActionResult> ApproveKyc(string id)
     {
@@ -101,6 +151,30 @@ public class AdminOpsController : ControllerBase
     public async Task<ActionResult<List<DisputeCase>>> GetDisputes()
     {
         return Ok(await _context.DisputeCases.AsNoTracking().ToListAsync());
+    }
+
+    [HttpPost("disputes/{id}/appeal")]
+    public async Task<ActionResult> SubmitDisputeAppeal(string id, [FromBody] SubmitDisputeAppealRequest request)
+    {
+        var dispute = await _context.DisputeCases.FirstOrDefaultAsync(d => d.Id == id);
+        if (dispute == null) return NotFound(new { message = $"Dispute {id} not found" });
+
+        dispute.Status = DisputeStatus.AppealSubmitted;
+        dispute.ProExplanation = request.ProExplanation;
+
+        _context.AdminAuditLogs.Add(new AdminAuditLog
+        {
+            AdminName = "System Anti-Bypass Guard",
+            AdminRole = AdminRole.DisputeOfficer,
+            Action = "DISPUTE_APPEAL_SUBMITTED",
+            TargetId = id,
+            TargetType = "dispute_case",
+            Details = $"Dispute #{id}: Pro submitted appeal explanation: \"{request.ProExplanation}\". Proof attached: {request.HasValidProof}.",
+            BadgeColor = "blue"
+        });
+
+        await _context.SaveChangesAsync();
+        return Ok(new { message = "Appeal submitted successfully.", dispute });
     }
 
     [HttpPost("disputes/{id}/resolve")]

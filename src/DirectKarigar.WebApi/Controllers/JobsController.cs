@@ -177,6 +177,158 @@ public class JobsController : ControllerBase
         return Ok(job);
     }
 
+    [HttpPatch("{id}/status")]
+    public async Task<ActionResult<Job>> UpdateStatus(string id, [FromBody] UpdateJobStatusRequest request)
+    {
+        var job = await _context.Jobs.Include(j => j.Messages).FirstOrDefaultAsync(j => j.Id == id);
+        if (job == null) return NotFound();
+
+        if (Enum.TryParse<JobStatus>(request.Status, true, out var status))
+        {
+            job.Status = status;
+            await _context.SaveChangesAsync();
+        }
+
+        return Ok(job);
+    }
+
+    [HttpPost("{id}/settle")]
+    public async Task<ActionResult<Job>> SettleJob(string id, [FromBody] SettlePaymentRequest request)
+    {
+        var job = await _context.Jobs
+            .Include(j => j.Messages)
+            .Include(j => j.Bill)
+            .FirstOrDefaultAsync(j => j.Id == id);
+
+        if (job == null) return NotFound(new { message = $"Job {id} not found" });
+
+        var mode = PaymentMode.UpiInApp;
+        var modeStr = request.PaymentMode?.ToLowerInvariant() ?? "";
+        if (modeStr.Contains("direct") || modeStr.Contains("upi_settled"))
+        {
+            mode = PaymentMode.DirectUpiSettled;
+        }
+        else if (modeStr.Contains("cash"))
+        {
+            mode = PaymentMode.CashSettled;
+        }
+
+        job.Status = JobStatus.Paid;
+        job.PaymentMode = mode;
+        job.PaymentTxnId = request.PaymentTxnId;
+        job.DirectPaymentReportedByPro = request.DirectReportedByPro;
+
+        decimal amount = request.Amount ?? (job.Bill?.TotalAmount ?? job.AgreedPrice ?? 350m);
+
+        // Update professional statistics if assigned
+        if (!string.IsNullOrEmpty(job.AssignedProId))
+        {
+            var pro = await _context.ProfessionalProfiles.FirstOrDefaultAsync(p => p.Id == job.AssignedProId);
+            if (pro != null)
+            {
+                pro.TotalJobsDone += 1;
+                pro.ActiveOrdersCount = Math.Max(0, pro.ActiveOrdersCount - 1);
+            }
+        }
+
+        // Update customer payment reliability
+        if (!string.IsNullOrEmpty(job.CustomerId))
+        {
+            var customer = await _context.CustomerProfiles.FirstOrDefaultAsync(c => c.Id == job.CustomerId);
+            if (customer != null)
+            {
+                customer.InternalPaymentReliability = Math.Min(100.0, customer.InternalPaymentReliability + 0.5);
+            }
+        }
+
+        job.Messages.Add(new ChatMessage
+        {
+            JobId = id,
+            SenderId = "system",
+            SenderRole = "system",
+            SenderName = "DirectKarigar Settlement Guard",
+            Text = $"Payment of ₹{amount} settled directly to {(request.DirectReportedByPro ? (job.AssignedProName ?? "Karigar") : "the technician")} via {mode} (Ref: {request.PaymentTxnId}). Zero platform commission deducted (100% Karigar Direct)."
+        });
+
+        await _context.SaveChangesAsync();
+        return Ok(job);
+    }
+
+    [HttpPost("{id}/ratings")]
+    public async Task<ActionResult<Job>> SubmitRating(string id, [FromBody] SubmitRatingRequest request)
+    {
+        var job = await _context.Jobs
+            .Include(j => j.Messages)
+            .Include(j => j.Bill)
+            .FirstOrDefaultAsync(j => j.Id == id);
+
+        if (job == null) return NotFound(new { message = $"Job {id} not found" });
+
+        bool isCustomerRatingPro = string.Equals(request.Mode, "customer_rates_pro", StringComparison.OrdinalIgnoreCase)
+                                   || string.IsNullOrEmpty(request.Mode);
+
+        if (isCustomerRatingPro)
+        {
+            job.CustomerReviewSubmitted = true;
+            if (!string.IsNullOrEmpty(job.AssignedProId))
+            {
+                var pro = await _context.ProfessionalProfiles
+                    .Include(p => p.Reviews)
+                    .FirstOrDefaultAsync(p => p.Id == job.AssignedProId);
+
+                if (pro != null)
+                {
+                    var review = new Review
+                    {
+                        ProfessionalProfileId = pro.Id,
+                        ReviewerName = job.CustomerName,
+                        Rating = request.Rating,
+                        Comment = string.IsNullOrWhiteSpace(request.Comment) ? "Verified direct service completion" : request.Comment
+                    };
+
+                    pro.Reviews.Add(review);
+                    pro.PublicRating = Math.Round(pro.Reviews.Average(r => r.Rating), 1);
+                    pro.TrustScore = Math.Min(100, pro.TrustScore + 1);
+                }
+            }
+
+            job.Messages.Add(new ChatMessage
+            {
+                JobId = id,
+                SenderId = "system",
+                SenderRole = "system",
+                SenderName = "DirectKarigar Trust Engine",
+                Text = $"Customer submitted public rating ({request.Rating:F1}★). Karigar reputation verified and updated."
+            });
+        }
+        else
+        {
+            // Pro rates customer: double-blind internal reliability feedback
+            job.ProReviewSubmitted = true;
+            if (!string.IsNullOrEmpty(job.CustomerId))
+            {
+                var customer = await _context.CustomerProfiles.FirstOrDefaultAsync(c => c.Id == job.CustomerId);
+                if (customer != null)
+                {
+                    customer.InternalProRatingSum += request.Rating;
+                    customer.InternalProRatingCount += 1;
+                }
+            }
+
+            job.Messages.Add(new ChatMessage
+            {
+                JobId = id,
+                SenderId = "system",
+                SenderRole = "system",
+                SenderName = "DirectKarigar Trust Engine",
+                Text = $"Karigar submitted double-blind reliability rating ({request.Rating:F1}★). Internal priority matchmaking score updated."
+            });
+        }
+
+        await _context.SaveChangesAsync();
+        return Ok(job);
+    }
+
     [HttpPost("{id}/cancel")]
     public async Task<ActionResult> CancelJob(string id)
     {

@@ -79,10 +79,47 @@ public record CreateBillRequest(
     string? ProNotes = null
 );
 
+public record UpdateJobStatusRequest(
+    string Status
+);
+
+public record SettlePaymentRequest(
+    string PaymentMode,
+    string PaymentTxnId,
+    decimal? Amount = null,
+    bool DirectReportedByPro = false
+);
+
 public record SubmitRatingRequest(
     double Rating,
     string Comment,
-    List<string>? Tags = null
+    List<string>? Tags = null,
+    string? Mode = "customer_rates_pro"
+);
+
+public record SubmitDisputeAppealRequest(
+    string ProExplanation,
+    bool HasValidProof = true
+);
+
+public record KycDocumentDto(
+    string Type,
+    string Title,
+    string? DocumentNumberMasked,
+    string FileUrl
+);
+
+public record SubmitKycRequest(
+    string ProfessionalId,
+    string ProfessionalName,
+    string Trade,
+    string Phone,
+    string Locality,
+    string City,
+    string AadhaarNumberMasked,
+    string? PanNumberMasked,
+    string? SelfieUrl,
+    List<KycDocumentDto>? Documents = null
 );
 
 public record ResolveDisputeRequest(
