@@ -233,11 +233,12 @@ Backend-DK/
 │       └── appsettings.json                  # Connection strings, JWT & CORS configuration
 │
 └── tests/
-    └── DirectKarigar.Domain.UnitTests/       # Domain Engine Test Suite (16 passing tests)
+    └── DirectKarigar.Domain.UnitTests/       # Domain Engine Test Suite (21 passing tests)
         ├── CustomerTrustEngineTests.cs       # Score calculations & tier matching tests
         ├── AntiBypassAuditEngineTests.cs     # Cancellation risk heuristics & pricing tests
         ├── RegistrationAndDispatchEngineTests.cs # Registration invariants & pro capacity tests
-        └── PaymentAndRatingEngineTests.cs    # Direct settlement, double-blind rating & appeal tests
+        ├── PaymentAndRatingEngineTests.cs    # Direct settlement, double-blind rating & appeal tests
+        └── DirectClaimAndTelemetryEngineTests.cs # Direct Claim, telemetry pings & capacity constraint tests
 ```
 
 ---
@@ -274,6 +275,8 @@ Backend-DK/
 | `/api/v1/jobs/{id}` | `GET` | Any Auth | Get job details, chat messages, and bill |
 | `/api/v1/jobs/{id}/messages` | `POST` | Any Auth | Send in-app chat message or quote offer |
 | `/api/v1/jobs/{id}/offers/{msgId}/accept` | `POST` | Customer | Accept counter-offer & lock rate atomically |
+| `/api/v1/jobs/{id}/claim` | `POST` | Pro | Instant Match & Direct Claim at budget rate (Atomic lock) |
+| `/api/v1/jobs/{id}/matchmaking` | `GET` | Any Auth | Live hidden customer trust score & ranked Karigar match results |
 | `/api/v1/jobs/{id}/bill` | `POST` | Pro | Generate transparent bill (Labor + Parts + ₹19) |
 | `/api/v1/jobs/{id}/status` | `PATCH` | Any Auth | Transition job lifecycle state |
 | `/api/v1/jobs/{id}/settle` | `POST` | Customer/Pro | Record direct 0% commission settlement (UPI/Cash) |
@@ -281,6 +284,7 @@ Backend-DK/
 | `/api/v1/jobs/{id}/cancel` | `POST` | Customer | Cancel job (triggers Anti-Bypass risk audit) |
 | `/api/v1/professionals` | `GET` | Any | List all registered trade professionals |
 | `/api/v1/professionals/nearby` | `GET` | Any | Geospatial proximity search (`lat`, `lng`, `radiusKm`) |
+| `/api/v1/professionals/{id}/telemetry` | `POST` | Pro | Stream live GPS telemetry coordinates (`lat`, `lng`, `locality`) |
 | `/api/v1/admin/kyc` | `GET` | Admin | Review pending UIDAI Aadhaar/ITI dossiers |
 | `/api/v1/admin/kyc` | `POST` | Pro | Submit Aadhaar & trade credentials dossier for review |
 | `/api/v1/admin/kyc/{id}/approve` | `POST` | Admin | Verify dossier & award Verified badge |

@@ -1,3 +1,4 @@
+using DirectKarigar.Application.DTOs;
 using DirectKarigar.Domain.Entities;
 using DirectKarigar.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
@@ -68,5 +69,25 @@ public class ProfessionalsController : ControllerBase
             .ToList();
 
         return Ok(nearby);
+    }
+
+    [HttpPost("{id}/telemetry")]
+    public async Task<ActionResult<ProfessionalProfile>> UpdateTelemetry(string id, [FromBody] UpdateTelemetryRequest request)
+    {
+        var pro = await _context.ProfessionalProfiles
+            .Include(p => p.Reviews)
+            .FirstOrDefaultAsync(p => p.Id == id);
+
+        if (pro == null) return NotFound(new { message = $"Professional {id} not found." });
+
+        pro.Lat = request.Lat;
+        pro.Lng = request.Lng;
+        if (!string.IsNullOrWhiteSpace(request.Locality))
+        {
+            pro.Locality = request.Locality;
+        }
+
+        await _context.SaveChangesAsync();
+        return Ok(pro);
     }
 }
